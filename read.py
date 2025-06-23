@@ -4,6 +4,7 @@ from matplotlib import cm, pyplot as plt
 from shapely.geometry.point import Point
 import networkx as nx
 import geojson
+import pandas as pd
 
 def read_graph_file(filename: str | Path = "graph_data.geojson") -> nx.Graph:
     """
@@ -41,4 +42,42 @@ def read_graph_file(filename: str | Path = "graph_data.geojson") -> nx.Graph:
             G.add_edge(source, target, pixel_list=pixel_list, **feature["properties"])
     G.metadata = data.get("metadata")
     return G
+
+
+def read_graph_from_excel(filename: str | Path) -> nx.Graph:
+    """
+    Read an Excel file with 'Edges' and 'Nodes' sheets into a NetworkX graph.
+
+    Parameters:
+    - filename: Path to the Excel file.
+
+    Returns:
+    - G: NetworkX graph with spatial data.
+    """
+    xls = pd.ExcelFile(filename)
+    edges_df = pd.read_excel(xls, sheet_name="Edges")
+    nodes_df = pd.read_excel(xls, sheet_name="Nodes")
+
+    G = nx.Graph()
+
+    # Add nodes
+    for _, row in nodes_df.iterrows():
+        node_id = row["node_Idx"]
+        x = row["node_X_pix"]
+        y = row["node_Y_pix"]
+        attrs = row.drop(labels=["node_Idx", "node_X_pix", "node_Y_pix"]).to_dict()
+        G.add_node(node_id, position=Point(x, y), **attrs)
+
+    # Add edges
+    for _, row in edges_df.iterrows():
+        source = row["node_Idx_1"]
+        target = row["node_Idx_2"]
+        attrs = row.drop(labels=["node_Idx_1", "node_Idx_2"]).to_dict()
+        G.add_edge(source, target, **attrs)
+
+    # Attach metadata
+    G.metadata = {"source_file": str(filename)}
+
+    return G
+
 
